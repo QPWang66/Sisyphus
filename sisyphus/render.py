@@ -107,8 +107,10 @@ _FONT = None
 def _font():
     global _FONT
     if _FONT is None:
-        for p in ("/System/Library/Fonts/PingFang.ttc",
-                  "/System/Library/Fonts/Hiragino Sans GB.ttc"):
+        for p in ("/System/Library/Fonts/PingFang.ttc",              # macOS
+                  "/System/Library/Fonts/Hiragino Sans GB.ttc",
+                  "C:/Windows/Fonts/segoeui.ttf",                    # Windows
+                  "C:/Windows/Fonts/arial.ttf"):
             try:
                 _FONT = ImageFont.truetype(p, 11 * SS)
                 break

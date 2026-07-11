@@ -1,0 +1,39 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt pyinstaller
+      - run: python -m sisyphus --check
+      - run: pyinstaller --windowed --name Sisyphus --icon assets/icon.icns run.py
+      - run: cd dist && ditto -c -k --keepParent Sisyphus.app Sisyphus-macos-arm64.zip
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/Sisyphus-macos-arm64.zip
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt pyinstaller
+      - run: python -m sisyphus --check
+      - run: pyinstaller --windowed --onefile --name Sisyphus --icon assets/icon.ico run.py
+      - run: Rename-Item dist/Sisyphus.exe Sisyphus-windows-x64.exe
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/Sisyphus-windows-x64.exe
