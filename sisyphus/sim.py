@@ -10,7 +10,7 @@ import math
 import random
 import time
 
-from .geometry import A, DIR, M, clamp, ease, lerp, terrain
+from .geometry import A, DIR, M, NRM, clamp, ease, lerp, terrain
 
 TOP_T = 0.85                                  # the ball never reaches the summit
 DUR = {"TOP": 1.3, "ROLL": 1.5, "WATCH": 1.8, "RETURN": 5.5}
@@ -38,6 +38,7 @@ class Sim:
         self.blocked = 0.0                     # cursor standing in his path
         self.walk, self.prev_feet = 0.0, None
         self.trail, self.dust = [], []         # rolling afterimages / impact dust
+        self.hop, self.hop_v = 0.0, 0.0        # the ball hopping over your cursor
         self.meteor = None                     # {"p": 0..1, "paused": bool}
         self.bird = None                       # {"ph": in|perch|off, "t": s}
         self.companion = None                  # {"p": 0..1, "paused": bool}
@@ -185,6 +186,11 @@ class Sim:
         self._update_events(dt)
         for lst, life in ((self.trail, 0.5), (self.dust, 0.8)):    # age the ephemera
             lst[:] = [(e[0], e[1] + dt) for e in lst if e[1] + dt < life]
+        if self.hop > 0 or self.hop_v != 0:    # ballistic little hop, then ground
+            self.hop += self.hop_v * dt
+            self.hop_v -= 480 * dt
+            if self.hop <= 0:
+                self.hop, self.hop_v = 0.0, 0.0
 
         if self.pause > 0:                     # poked: the world waits with him
             self.pause -= dt
@@ -239,6 +245,17 @@ class Sim:
             self.ball_t = self.roll_from * (1 - p * p)
             if self.ball_t > 0.02:
                 self.trail.append((self.ball_t, 0.0))
+            # a cursor in its way: it stumbles, hops over, and keeps falling
+            if self.cursor and self.hop == 0 and self.hop_v == 0:
+                bc = A(terrain(self.ball_t), M(NRM, R * self.rock))
+                if math.hypot(self.cursor[0] - bc[0],
+                              self.cursor[1] - bc[1]) < R * self.rock + 8:
+                    self.hop_v = 95.0
+                    self.dust += [((bc[0] + random.uniform(-4, 4),
+                                    bc[1] + random.uniform(0, 4),
+                                    random.uniform(-18, 18),
+                                    random.uniform(-20, -6)), 0.0)
+                                  for _ in range(3)]
             if p >= 1 and not self._splashed:
                 self._splashed = True
                 self._splash()

@@ -332,7 +332,7 @@ def render(sim, stats=None):
     if sim.companion:
         draw_companion(f, sim.companion, sim.clock)
     feet = A(terrain(sim.fig_t), M(DIR, -R * (0.6 + sim.rock)))
-    ball_c = A(terrain(sim.ball_t), M(NRM, R * sim.rock))
+    ball_c = A(terrain(sim.ball_t), M(NRM, R * sim.rock + sim.hop))
     if sim.prev_feet:
         d = math.hypot(feet[0] - sim.prev_feet[0], feet[1] - sim.prev_feet[1])
         sim.walk += d / (R * 0.9) * math.pi * (1 + 0.35 * sim.chaos)

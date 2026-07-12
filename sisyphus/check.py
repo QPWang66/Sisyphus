@@ -107,6 +107,19 @@ def check():
     sim.cursor = None
     _run(sim, dt, 3)
     assert sim.ball_t - b > 0.05, "he should move on once the path clears"
+    # 7b. a cursor in the rolling ball's way: it hops, and still reaches the base
+    sim = Sim()
+    sim.tease = sim.will_slip = False
+    sim.ball_t = sim.fig_t = sim.top_t
+    sim._start_roll("ROLL")
+    from .geometry import M as _M, NRM as _NRM
+    hopped = False
+    for _ in range(int(6 / dt)):
+        sim.cursor = _A(_terrain(sim.ball_t * 0.8), _M(_NRM, 17 * sim.rock))
+        sim.update(dt, 0.0)
+        hopped = hopped or sim.hop > 1
+    assert hopped, "the rolling ball should hop over the cursor"
+    assert sim.ball_t < 0.05, "hop or no hop, it reaches the bottom"
     # 8. render smoke: seasons × fallen × hover text × trail × wind, plus timing
     sim = Sim()
     sim.flourish, sim.info, sim.windy, sim.state = True, 1.0, True, "TOP"
