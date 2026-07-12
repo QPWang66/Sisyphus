@@ -139,6 +139,7 @@ def check():
             sim.trail = [(0.4, 0.1), (0.3, 0.3)]
             img = render(sim, stats)
             assert img.size == (W, H)
+            assert render(sim, stats, out_scale=2).size == (W * 2, H * 2)
             frames += 1
     BG_LIGHT[0] = 0.0
     ms = (time.perf_counter() - t0) / frames * 1000

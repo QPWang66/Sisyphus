@@ -44,7 +44,7 @@ class Frame:
         self.dc = ImageDraw.Draw(self.core)
         self.dg = ImageDraw.Draw(self.glow)
 
-    def out(self, dim=1.0):
+    def out(self, dim=1.0, out_scale=1):
         img = Image.alpha_composite(
             self.glow.filter(ImageFilter.GaussianBlur(2.6 * SS)), self.core)
         # a soft dark shade under everything: keeps the glow legible on a
@@ -55,7 +55,8 @@ class Frame:
         under.putalpha(a.point(lambda v: min(235, int(v * k))))  # itself carries
         # contrast, so the shade eases off; dark bg: shade stays subtle too
         img = Image.alpha_composite(under, img)
-        img = img.resize((W, H), Image.LANCZOS)
+        if out_scale != SS:                     # HiDPI callers take SS-res as-is
+            img = img.resize((W * out_scale, H * out_scale), Image.LANCZOS)
         if dim < 1.0:
             img.putalpha(img.getchannel("A").point(lambda v: int(v * dim)))
         return img
@@ -318,8 +319,8 @@ def draw_figure(f, sim, feet, ball_c):
     brush(f, sway([chest, elbow, hand], t + 4.1), R * 0.22, 0.80, tip=0.25)
 
 
-def render(sim, stats=None):
-    """One full frame as a PIL RGBA image."""
+def render(sim, stats=None, out_scale=1):
+    """One full frame as a PIL RGBA image, W*out_scale × H*out_scale."""
     tgt = SEASONS[sim.season]
     for i in range(3):
         INK[i] += (tgt[i] - INK[i]) * 0.02      # the season fades in over ~2s
@@ -345,4 +346,4 @@ def render(sim, stats=None):
         txt = f"{stats.keys:,} keys today · boulder displacement: 0 m"
         f.dc.text((int(W * 0.06) * SS, int(H * 0.08) * SS), txt,
                   font=_font(), fill=_core(0.75 * sim.info))
-    return f.out(sim.dim)
+    return f.out(sim.dim, out_scale)

@@ -21,7 +21,7 @@ from Foundation import NSData, NSObject
 
 from .geometry import A, H, M, NRM, R, W, project, terrain
 from .inputs import Stats, Typing
-from .render import BG_LIGHT, render
+from .render import BG_LIGHT, SS, render
 from .sim import Sim
 
 FPS = 30.0
@@ -110,7 +110,8 @@ class SisyphusView(NSView):
         BG_LIGHT[0] += (self.bg_target - BG_LIGHT[0]) * 0.05
         self.sim.update(dt, drive, chaos)
         self.sim.info *= 0.94                   # fades unless hover keeps feeding it
-        self.image = _nsimage(render(self.sim, self.stats))
+        # render at SS resolution and let Quartz map it 1:1 onto Retina pixels
+        self.image = _nsimage(render(self.sim, self.stats, out_scale=SS))
         self.setNeedsDisplay_(True)
 
     def drawRect_(self, _rect):
