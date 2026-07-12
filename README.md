@@ -1,5 +1,7 @@
 # Sisyphus
 
+[中文说明](README.zh-CN.md)
+
 A desktop companion who pushes a boulder, forever.
 
 The harder you type, the harder he pushes. The boulder never reaches the top.
