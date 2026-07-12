@@ -87,6 +87,8 @@ def check():
     assert sim.companion and sim.meteor and sim.bird
     _run(sim, dt, 40, 0.0)
     assert sim.companion is None and sim.meteor is None and sim.bird is None
+    sim = Sim()                                 # fresh, boulder at the base:
+    sim.tease = sim.will_slip = False
     sim.trigger("sit")                          # he sits, then goes back to it
     _run(sim, dt, 0.5, 0.0)
     assert sim.state == "SIT" and sim.sit > 0.1, (sim.state, sim.sit)
@@ -94,6 +96,14 @@ def check():
     assert sim.state != "SIT", "he cannot sit forever"
     sim.trigger("rock")
     assert sim.rock > 1.4                       # a heavy day
+    sim = Sim()                                 # sit mid-roll must NOT freeze the ball
+    sim.tease = sim.will_slip = False
+    sim.ball_t = sim.fig_t = sim.top_t
+    sim._start_roll("ROLL")
+    sim.trigger("sit")
+    assert sim.state == "ROLL" and sim.force_sit, "mid-roll sit should be queued"
+    _run(sim, dt, 4, 0.0)
+    assert sim.ball_t < 0.05, "the ball must finish its fall"
     # 7. a parked cursor blocks the walk; moving it away frees him
     sim = Sim()
     sim.tease = sim.will_slip = False

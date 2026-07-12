@@ -78,8 +78,13 @@ class Sim:
         elif name == "bird" and self.bird is None:
             self.bird = {"ph": "in", "t": 0.0}
         elif name == "sit" and self.state not in ("SIT", "DRAG"):
-            self.sit_dur, self._sit_back = random.uniform(5, 9), self.state
-            self._go("SIT")                    # sits right where he is
+            # only when the boulder is settled at the base — otherwise it would
+            # hang mid-slope while he rests; queue it for the end of the lap
+            if self.state in ("WATCH", "RETURN", "ASCEND") and self.ball_t < 0.02:
+                self.sit_dur, self._sit_back = random.uniform(5, 9), self.state
+                self._go("SIT")
+            else:
+                self.force_sit = True
         elif name == "slip" and self.state == "ASCEND":
             self.will_slip, self.slip_at = True, min(0.9, self.ball_t + 0.05)
         elif name == "tease":

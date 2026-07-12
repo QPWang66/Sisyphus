@@ -4,7 +4,7 @@ import math
 W, H = 440, 280
 R = 17                       # boulder mean radius, everything scales off it
 
-BASE = (W * 0.10, H * 0.82)
+BASE = (W * 0.13, H * 0.82)  # far enough in that a heavy boulder + glow stays inside
 SUMMIT = (W * 0.80, H * 0.24)
 _dx, _dy = SUMMIT[0] - BASE[0], SUMMIT[1] - BASE[1]
 DL = math.hypot(_dx, _dy)             # base→summit distance

@@ -207,20 +207,30 @@ def draw_companion(f, ev, clock):
     p = ev["p"]
     seg = p * (len(FAR1) - 1)
     i = min(int(seg), len(FAR1) - 2)
-    pos = LV(FAR1[i], FAR1[i + 1], seg - i)
+    pos = LV(FAR1[i], FAR1[i + 1], seg - i)                    # his feet
     d = (FAR1[i + 1][0] - FAR1[i][0], FAR1[i + 1][1] - FAR1[i][1])
     dl = math.hypot(*d) or 1
     d = (d[0] / dl, d[1] / dl)
-    n = (d[1], -d[0])
-    a = 0.38 * min(1.0, 6 * p, 6 * (1 - p))                    # fades in and out
-    rr = 4.5
-    ball = A(A(pos, M(d, rr * 1.6)), M(n, rr))
-    line(f, [A(ball, (math.cos(clock + i) * rr, math.sin(clock + i) * rr))
-             for i in range(6)], 1.0, a, closed=True, glow=False)
-    hip = A(pos, M(n, 5.5))
-    head = A(A(hip, M(n, 5.0)), M(d, 2.5))
-    line(f, [A(pos, M(d, -2)), hip, head], 1.2, a, glow=False)  # a bent little figure
-    dot(f, A(head, M(d, 1.2)), 0.9, a)
+    n = (0.0, -1.0)                                            # up, simply
+    a = 0.42 * min(1.0, 6 * p, 6 * (1 - p))                    # fades in and out
+    s = 3.4                                                    # his scale unit
+    ball = A(A(pos, M(d, s * 2.7)), M(n, s * 1.4))             # his boulder
+    th = p * 40
+    line(f, [A(ball, (math.cos(th + j * math.tau / 6) * s * 1.4,
+                      math.sin(th + j * math.tau / 6) * s * 1.4))
+             for j in range(6)], 1.0, a, closed=True, glow=False)
+    hip = A(pos, M(n, s * 2.0))
+    chest = A(A(hip, M(n, s * 1.7)), M(d, s * 0.9))            # bent into the push
+    head = A(A(chest, M(n, s * 0.9)), M(d, s * 0.5))
+    sw = math.sin(clock * 5.0)
+    for sign in (1, -1):                                       # two little legs
+        foot = A(pos, M(d, s * 0.9 * sw * sign))
+        line(f, [hip, A(LV(hip, foot, 0.5), M(d, s * 0.4)), foot], 1.1, a, glow=False)
+    line(f, [hip, A(LV(hip, chest, 0.6), M(d, s * 0.5)), chest], 1.3, a, glow=False)
+    line(f, [chest, A(ball, M(d, -s * 1.2))], 1.1, a, glow=False)   # arm on the rock
+    line(f, [A(head, (-s * 0.55, 0)), A(head, (0, -s * 0.55)),
+             A(head, (s * 0.55, 0)), A(head, (0, s * 0.55))],
+         1.0, a, closed=True, glow=False)                      # a tiny head loop
 
 
 BOULDER_RADII = (1.0, 0.86, 1.08, 0.92, 1.12, 0.84, 1.05, 0.90, 1.10, 0.88)
@@ -253,19 +263,19 @@ def draw_figure(f, sim, feet, ball_c):
     e, t, fc, fl = sim.effort, sim.clock, sim.face, sim.fallen
     q, ch = sim.sit, sim.chaos
     up0 = (fc * math.sin(sim.lean), -math.cos(sim.lean))
-    up = LV(up0, DIR, fl * 0.85)                               # fallen: torso to the ground
+    up = LV(up0, M(DIR, -1), fl * 0.85)        # fallen: he lies pointing downhill
     ul = math.hypot(*up) or 1
     up = (up[0] / ul, up[1] / ul)
     fwd = M(DIR, fc)
-    shrink = 1 - 0.45 * fl
-    torso_len, head_r = R * 1.05 * shrink, R * 0.40
+    shrink = 1 - 0.15 * fl                     # lying stretches along the slope,
+    torso_len, head_r = R * 1.05 * shrink, R * 0.40       # it does not crumple
     leg_len = R * 1.15 * shrink * (1 - 0.06 * abs(math.cos(sim.walk)))
     trem = M((math.sin(t * 34) * R * 0.02 * e, math.sin(t * 29 + 1.7) * R * 0.02 * e),
              1 + 1.0 * ch)                                     # frantic typing shows
-    breath = M(up, math.sin(t * 1.1 + sim.ph[0]) * R * 0.03 * (1 + 2 * fl))
+    breath = M(up, math.sin(t * 1.1 + sim.ph[0]) * R * 0.03 * (1 + 0.6 * fl))
     amp = R * 0.055 * (0.35 + 0.65 * e) * (1 + 0.6 * ch)
 
-    hip = A(feet, M(up, leg_len * (1 - 0.7 * fl) * (1 - 0.55 * q)))  # sitting: low
+    hip = A(feet, M(up, leg_len * (1 - 0.35 * fl) * (1 - 0.55 * q)))  # sitting: low
     chest = A(A(A(hip, M(up, torso_len)), M(fwd, R * (0.18 * e + 0.10 * q))), trem)
     head_c = A(A(A(A(chest, M(up, head_r * 1.5)), M(fwd, R * 0.18 * e)), breath), trem)
     head_c = A(head_c, M(up, R * 0.18 * sim.rest))             # poked: he looks up
@@ -275,7 +285,7 @@ def draw_figure(f, sim, feet, ball_c):
         head_c = A(head_c, (dx / dl_ * R * 0.16 * sim.blocked,
                             dy / dl_ * R * 0.16 * sim.blocked))
 
-    stride, sw = R * 0.55 * (1 - fl) * (1 - 0.4 * q), math.sin(sim.walk)
+    stride, sw = R * 0.55 * (1 - 0.35 * fl) * (1 - 0.4 * q), math.sin(sim.walk)
     legs = []
     for i, sign in enumerate((1, -1)):
         s = sw * sign
