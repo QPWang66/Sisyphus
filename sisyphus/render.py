@@ -202,13 +202,19 @@ def draw_bird(f, sim):
     dot(f, pos, 1.0, 0.65)
 
 
+# the companion's own climb: strictly ascending — he, too, only goes up
+COMP_PATH = ((W * 0.03, H * 0.54), (W * 0.12, H * 0.485), (W * 0.20, H * 0.44),
+             (W * 0.28, H * 0.39), (W * 0.35, H * 0.355))
+
+
 def draw_companion(f, ev, clock):
-    """Another one, far away on another ridge, pushing another boulder."""
+    """Another one, far away on another ridge, pushing another boulder.
+    He fades out before the crest; his climb is never seen finished."""
     p = ev["p"]
-    seg = p * (len(FAR1) - 1)
-    i = min(int(seg), len(FAR1) - 2)
-    pos = LV(FAR1[i], FAR1[i + 1], seg - i)                    # his feet
-    d = (FAR1[i + 1][0] - FAR1[i][0], FAR1[i + 1][1] - FAR1[i][1])
+    seg = p * (len(COMP_PATH) - 1)
+    i = min(int(seg), len(COMP_PATH) - 2)
+    pos = LV(COMP_PATH[i], COMP_PATH[i + 1], seg - i)          # his feet
+    d = (COMP_PATH[i + 1][0] - COMP_PATH[i][0], COMP_PATH[i + 1][1] - COMP_PATH[i][1])
     dl = math.hypot(*d) or 1
     d = (d[0] / dl, d[1] / dl)
     n = (0.0, -1.0)                                            # up, simply
