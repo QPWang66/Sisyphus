@@ -71,6 +71,7 @@ def main():
             sim.poke()
 
     def hover(e):
+        sim.cursor = (e.x, e.y)                 # he notices where you stand
         ft = terrain(sim.fig_t)
         if math.hypot(e.x - ft[0], e.y - ft[1]) < 70:
             sim.info = min(1.0, sim.info + 0.15)
@@ -79,12 +80,18 @@ def main():
         stats.save()
         root.destroy()
 
+    PREVIEW = {"1": "companion", "2": "meteor", "3": "bird", "4": "sit",
+               "5": "slip", "6": "tease", "8": "rock"}
+
     c.bind("<ButtonPress-1>", p_down)
     c.bind("<B1-Motion>", p_move)
     c.bind("<ButtonRelease-1>", p_up)
     c.bind("<Motion>", hover)
+    c.bind("<Leave>", lambda e: setattr(sim, "cursor", None))
     c.bind("<Button-3>", quit_)                 # right-click quits, same as macOS
     root.bind("<Escape>", quit_)
+    root.bind("<Key>", lambda e: sim.trigger(PREVIEW[e.char])
+              if e.char in PREVIEW else None)   # preview keys force a rare event
 
     typing = Typing()
     print("Keyboard listener started." if typing.ok
@@ -98,13 +105,13 @@ def main():
         now = time.monotonic()
         dt = min(0.05, now - last[0])
         last[0] = now
-        drive, n = typing.update(dt)
+        drive, n, chaos = typing.update(dt)
         if n:
             stats.hit(n)
         if now - saved[0] > 10:
             saved[0] = now
             stats.save()
-        sim.update(dt, drive)
+        sim.update(dt, drive, chaos)
         sim.info *= 0.94                        # fades unless hover keeps feeding it
         photo.paste(flat_frame())
         root.after(FPS_MS, tick)

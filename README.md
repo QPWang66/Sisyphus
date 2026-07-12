@@ -39,8 +39,17 @@ which keys.
 - **Hover near him** — today's numbers: `N keys today · boulder displacement: 0 m`.
 - **Drag elsewhere** moves the window. **Right-click** or **Esc** quits.
 
+- **Park your cursor in his path** — he stops and waits, without a word.
+- **Type steadily or frantically** — his gait knows the difference.
+
 Some laps carry a seasonal touch — sprouts, fireflies, a falling leaf, sparse
-snow. Rarely, he slips. Very rarely, the boulder almost makes it.
+snow. Some days the boulder is simply bigger. Rarely, he slips. Rarely, a bird
+lands on the boulder, or a meteor crosses the night, or another Sisyphus passes
+on a distant ridge. Very rarely, the boulder almost makes it. In the small
+hours he sometimes sits down beside it for a while before starting again.
+
+**Preview keys** (click the window first): `1` companion · `2` meteor ·
+`3` bird · `4` sit · `5` slip · `6` near-success · `8` a heavy boulder.
 
 ## Check
 

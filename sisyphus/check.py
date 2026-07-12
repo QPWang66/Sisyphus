@@ -79,9 +79,42 @@ def check():
             break
     else:
         raise AssertionError("even the near-success must roll back")
-    # 6. render smoke: seasons × fallen × hover text × trail × wind, plus timing
+    # 6. events: each preview trigger runs its course and clears itself
+    sim = Sim()
+    sim.tease = sim.will_slip = False
+    for name in ("companion", "meteor", "bird"):
+        sim.trigger(name)
+    assert sim.companion and sim.meteor and sim.bird
+    _run(sim, dt, 40, 0.0)
+    assert sim.companion is None and sim.meteor is None and sim.bird is None
+    sim.trigger("sit")                          # he sits, then goes back to it
+    _run(sim, dt, 0.5, 0.0)
+    assert sim.state == "SIT" and sim.sit > 0.1, (sim.state, sim.sit)
+    _run(sim, dt, 12, 0.0)
+    assert sim.state != "SIT", "he cannot sit forever"
+    sim.trigger("rock")
+    assert sim.rock > 1.4                       # a heavy day
+    # 7. a parked cursor blocks the walk; moving it away frees him
+    sim = Sim()
+    sim.tease = sim.will_slip = False
+    _run(sim, dt, 2)
+    from .geometry import A as _A, DIR as _DIR, M as _M, terrain as _terrain
+    sim.cursor = _A(_terrain(sim.fig_t), _M(_DIR, 20))
+    _run(sim, dt, 1.5)                          # he takes a moment to halt…
+    b = sim.ball_t
+    _run(sim, dt, 2)
+    assert sim.ball_t - b < 0.005, "cursor in his path should stop him"
+    sim.cursor = None
+    _run(sim, dt, 3)
+    assert sim.ball_t - b > 0.05, "he should move on once the path clears"
+    # 8. render smoke: seasons × fallen × hover text × trail × wind, plus timing
     sim = Sim()
     sim.flourish, sim.info, sim.windy, sim.state = True, 1.0, True, "TOP"
+    sim.meteor = {"p": 0.4, "paused": True}
+    sim.companion = {"p": 0.5, "paused": True}
+    sim.bird = {"ph": "perch", "t": 1.0}
+    sim.sit, sim.chaos, sim.rock = 0.6, 0.8, 1.4
+    sim.cursor, sim.blocked = (200, 150), 0.7
     stats = Stats()
     t0 = time.perf_counter()
     frames = 0

@@ -85,17 +85,20 @@ class SisyphusView(NSView):
         self.bg_checked = 0.0
 
     def updateTrackingAreas(self):
+        from AppKit import NSTrackingMouseEnteredAndExited
         for ta in self.trackingAreas():
             self.removeTrackingArea_(ta)
         self.addTrackingArea_(NSTrackingArea.alloc().initWithRect_options_owner_userInfo_(
-            self.bounds(), NSTrackingMouseMoved | NSTrackingActiveAlways, self, None))
+            self.bounds(),
+            NSTrackingMouseMoved | NSTrackingMouseEnteredAndExited
+            | NSTrackingActiveAlways, self, None))
 
     # ── frame loop ──
     def tick_(self, _timer):
         now = time.monotonic()
         dt = min(0.05, now - self.last)
         self.last = now
-        drive, n = self.typing.update(dt)
+        drive, n, chaos = self.typing.update(dt)
         if n:
             self.stats.hit(n)
         if now - self.saved > 10:
@@ -105,7 +108,7 @@ class SisyphusView(NSView):
             self.bg_checked = now
             self.bg_target = wallpaper_light(self.window())
         BG_LIGHT[0] += (self.bg_target - BG_LIGHT[0]) * 0.05
-        self.sim.update(dt, drive)
+        self.sim.update(dt, drive, chaos)
         self.sim.info *= 0.94                   # fades unless hover keeps feeding it
         self.image = _nsimage(render(self.sim, self.stats))
         self.setNeedsDisplay_(True)
@@ -160,17 +163,28 @@ class SisyphusView(NSView):
 
     def mouseMoved_(self, event):
         x, y = self._pt(event)
+        self.sim.cursor = (x, y)                # he notices where you stand
         ft = terrain(self.sim.fig_t)
         if math.hypot(x - ft[0], y - ft[1]) < 70:
             self.sim.info = min(1.0, self.sim.info + 0.15)
+
+    def mouseExited_(self, _event):
+        self.sim.cursor = None
 
     # ── keys ──
     def acceptsFirstResponder(self):
         return True
 
+    PREVIEW = {"1": "companion", "2": "meteor", "3": "bird", "4": "sit",
+               "5": "slip", "6": "tease", "8": "rock"}
+
     def keyDown_(self, event):
         if event.keyCode() == 53:               # Esc
             self._quit()
+            return
+        name = self.PREVIEW.get(str(event.characters()))
+        if name:                                # preview keys force a rare event
+            self.sim.trigger(name)
 
     @objc.python_method
     def _quit(self):

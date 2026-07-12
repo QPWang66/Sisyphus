@@ -3,14 +3,18 @@ import json
 import math
 import threading
 import time
+from collections import deque
 from pathlib import Path
 
 
 class Typing:
-    """drive ∈ [0,1]: 0 = idle crawl, 1 = hammering the keyboard."""
+    """drive ∈ [0,1]: 0 = idle crawl, 1 = hammering the keyboard.
+    chaos ∈ [0,1]: 0 = steady rhythm, 1 = frantic bursts."""
 
     def __init__(self):
         self._n, self._lock, self._rate = 0, threading.Lock(), 0.0
+        self._times = deque(maxlen=12)
+        self._chaos = 0.0
         self.ok = False
         try:
             from pynput import keyboard
@@ -22,13 +26,24 @@ class Typing:
     def _hit(self, *_):
         with self._lock:
             self._n += 1
+            self._times.append(time.monotonic())
 
     def update(self, dt):
-        """Returns (drive, keys_this_frame)."""
+        """Returns (drive, keys_this_frame, chaos)."""
         with self._lock:
             n, self._n = self._n, 0
+            times = list(self._times)
         self._rate = self._rate * math.exp(-dt / 0.45) + n  # short memory, snappy
-        return min(1.0, self._rate / 2.0), n                # ~4 keys/s = flat out
+        target = 0.0
+        if len(times) >= 6 and time.monotonic() - times[-1] < 2.0:
+            iv = [b - a for a, b in zip(times, times[1:]) if b - a < 2.0]
+            if len(iv) >= 4:
+                m = sum(iv) / len(iv)
+                if m > 1e-6:
+                    cv = (sum((x - m) ** 2 for x in iv) / len(iv)) ** 0.5 / m
+                    target = max(0.0, min(1.0, (cv - 0.35) / 0.65))
+        self._chaos += (target - self._chaos) * min(1, dt * 3)
+        return min(1.0, self._rate / 2.0), n, self._chaos  # ~4 keys/s = flat out
 
 
 class Stats:

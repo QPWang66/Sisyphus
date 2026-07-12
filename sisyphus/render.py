@@ -168,6 +168,60 @@ def draw_ground(f, sim):
         line(f, wp, 1.0, 0.10 + 0.08 * math.sin(t * 1.7), glow=False)
 
 
+def draw_meteor(f, ev):
+    """A meteor over the far ridge. He watches. Then back to work."""
+    p = ev["p"]
+    a, b = (W * 0.12, H * 0.10), (W * 0.82, H * 0.30)
+    pos = LV(a, b, p)
+    fade = min(1.0, 4 * p, 4 * (1 - p))
+    for i in range(5):                                         # the tail
+        q = LV(a, b, max(0.0, p - 0.03 * (i + 1)))
+        dot(f, q, 1.0 - i * 0.15, 0.5 * fade * (1 - i / 5))
+    dot(f, pos, 1.5, 0.95 * fade)
+
+
+def draw_bird(f, sim):
+    """A small bird: lands on the boulder, will not be touched."""
+    ph, t = sim.bird["ph"], sim.bird["t"]
+    bc = A(terrain(sim.ball_t), M(NRM, R * sim.rock))
+    perch = A(bc, M(NRM, R * sim.rock * 0.95))
+    if ph == "in":
+        p = 1 - (1 - min(1, t / 1.2)) ** 2
+        pos, flap = LV(A(perch, (130, -80)), perch, p), math.sin(t * 16) * 0.8
+    elif ph == "perch":
+        pos, flap = A(perch, (0, math.sin(t * 2.2) * 0.6)), 0.12
+    else:
+        p = (min(1, t / 1.2)) ** 1.5
+        pos, flap = LV(perch, A(perch, (150, -110)), p), math.sin(t * 18) * 0.9
+    s = R * 0.24
+    for sgn in (-1, 1):
+        wing = (pos[0] + sgn * s * 1.5,
+                pos[1] - s * (0.15 + 0.85 * abs(flap)) * (1 if sgn * flap >= 0 else 0.4))
+        line(f, [pos, wing], 1.1, 0.7, glow=False)
+    dot(f, pos, 1.0, 0.65)
+
+
+def draw_companion(f, ev, clock):
+    """Another one, far away on another ridge, pushing another boulder."""
+    p = ev["p"]
+    seg = p * (len(FAR1) - 1)
+    i = min(int(seg), len(FAR1) - 2)
+    pos = LV(FAR1[i], FAR1[i + 1], seg - i)
+    d = (FAR1[i + 1][0] - FAR1[i][0], FAR1[i + 1][1] - FAR1[i][1])
+    dl = math.hypot(*d) or 1
+    d = (d[0] / dl, d[1] / dl)
+    n = (d[1], -d[0])
+    a = 0.38 * min(1.0, 6 * p, 6 * (1 - p))                    # fades in and out
+    rr = 4.5
+    ball = A(A(pos, M(d, rr * 1.6)), M(n, rr))
+    line(f, [A(ball, (math.cos(clock + i) * rr, math.sin(clock + i) * rr))
+             for i in range(6)], 1.0, a, closed=True, glow=False)
+    hip = A(pos, M(n, 5.5))
+    head = A(A(hip, M(n, 5.0)), M(d, 2.5))
+    line(f, [A(pos, M(d, -2)), hip, head], 1.2, a, glow=False)  # a bent little figure
+    dot(f, A(head, M(d, 1.2)), 0.9, a)
+
+
 BOULDER_RADII = (1.0, 0.86, 1.08, 0.92, 1.12, 0.84, 1.05, 0.90, 1.10, 0.88)
 
 
@@ -179,12 +233,13 @@ def boulder_pts(center, theta, scale=1.0):
 
 
 def draw_boulder(f, sim, center, theta):
+    rk = sim.rock
     for bt, age in sim.trail:                                  # rolling afterimages
-        c = A(terrain(bt), M(NRM, R))
-        line(f, boulder_pts(c, theta + (bt - sim.ball_t) * DL / R),
+        c = A(terrain(bt), M(NRM, R * rk))
+        line(f, boulder_pts(c, theta + (bt - sim.ball_t) * DL / (R * rk), rk),
              1.2, 0.16 * (1 - age / 0.5), closed=True, glow=False)
-    pts = boulder_pts(center, theta)
-    line(f, pts, R * 0.10, 0.95, closed=True)                  # the rock, angular
+    pts = boulder_pts(center, theta, rk)
+    line(f, pts, R * 0.10 * rk, 0.95, closed=True)             # the rock, angular
     line(f, [LV(pts[2], center, 0.15), LV(pts[2], center, 0.55)],
          1.2, 0.30, glow=False)                                # one crack, no more
     for pos, age in sim.dust:                                  # impact dust
@@ -195,6 +250,7 @@ def draw_boulder(f, sim, center, theta):
 
 def draw_figure(f, sim, feet, ball_c):
     e, t, fc, fl = sim.effort, sim.clock, sim.face, sim.fallen
+    q, ch = sim.sit, sim.chaos
     up0 = (fc * math.sin(sim.lean), -math.cos(sim.lean))
     up = LV(up0, DIR, fl * 0.85)                               # fallen: torso to the ground
     ul = math.hypot(*up) or 1
@@ -203,22 +259,30 @@ def draw_figure(f, sim, feet, ball_c):
     shrink = 1 - 0.45 * fl
     torso_len, head_r = R * 1.05 * shrink, R * 0.40
     leg_len = R * 1.15 * shrink * (1 - 0.06 * abs(math.cos(sim.walk)))
-    trem = (math.sin(t * 34) * R * 0.02 * e, math.sin(t * 29 + 1.7) * R * 0.02 * e)
+    trem = M((math.sin(t * 34) * R * 0.02 * e, math.sin(t * 29 + 1.7) * R * 0.02 * e),
+             1 + 1.0 * ch)                                     # frantic typing shows
     breath = M(up, math.sin(t * 1.1 + sim.ph[0]) * R * 0.03 * (1 + 2 * fl))
-    amp = R * 0.055 * (0.35 + 0.65 * e)
+    amp = R * 0.055 * (0.35 + 0.65 * e) * (1 + 0.6 * ch)
 
-    hip = A(feet, M(up, leg_len * (1 - 0.7 * fl)))
-    chest = A(A(A(hip, M(up, torso_len)), M(fwd, R * 0.18 * e)), trem)
+    hip = A(feet, M(up, leg_len * (1 - 0.7 * fl) * (1 - 0.55 * q)))  # sitting: low
+    chest = A(A(A(hip, M(up, torso_len)), M(fwd, R * (0.18 * e + 0.10 * q))), trem)
     head_c = A(A(A(A(chest, M(up, head_r * 1.5)), M(fwd, R * 0.18 * e)), breath), trem)
     head_c = A(head_c, M(up, R * 0.18 * sim.rest))             # poked: he looks up
+    if sim.blocked > 0.02 and sim.cursor:                      # blocked: he regards you
+        dx, dy = sim.cursor[0] - head_c[0], sim.cursor[1] - head_c[1]
+        dl_ = math.hypot(dx, dy) or 1
+        head_c = A(head_c, (dx / dl_ * R * 0.16 * sim.blocked,
+                            dy / dl_ * R * 0.16 * sim.blocked))
 
-    stride, sw = R * 0.55 * (1 - fl), math.sin(sim.walk)
+    stride, sw = R * 0.55 * (1 - fl) * (1 - 0.4 * q), math.sin(sim.walk)
     legs = []
     for i, sign in enumerate((1, -1)):
         s = sw * sign
-        foot = A(A(feet, M(DIR, stride * s)), M(NRM, max(0, s) * R * 0.28 * (1 - fl)))
+        foot = A(A(feet, M(DIR, stride * s + fc * R * 0.35 * q)),
+                 M(NRM, max(0, s) * R * 0.28 * (1 - fl) * (1 - q)))
         knee = A(A(LV(hip, foot, 0.5), M(fwd, R * (0.14 + 0.12 * e))),
-                 (math.sin(t * 3.1 + sim.ph[i]) * R * 0.04, 0))
+                 A((math.sin(t * 3.1 + sim.ph[i]) * R * 0.04, 0),
+                   M(NRM, R * 0.35 * q)))                      # sitting: knees up
         legs.append((knee, foot))
 
     def sway(pts, t0):
@@ -246,7 +310,7 @@ def draw_figure(f, sim, feet, ball_c):
     line(f, hpts, R * 0.13, 0.95, closed=True)
 
     # arm — on the boulder while pushing, hanging loose otherwise
-    hand_push = A(A(ball_c, M(DIR, -R * 0.55)), M(NRM, R * 0.30))
+    hand_push = A(A(ball_c, M(DIR, -R * 0.55 * sim.rock)), M(NRM, R * 0.30 * sim.rock))
     hand_relax = A(A(chest, M(up, -torso_len * 0.45)), M(fwd, R * 0.1))
     hand = A(LV(hand_relax, hand_push, sim.push * (1 - fl)), trem)
     elbow = A(A(LV(chest, hand, 0.5), M(up, R * 0.18)),
@@ -263,13 +327,19 @@ def render(sim, stats=None):
     draw_ground(f, sim)
     if sim.flourish:
         draw_season(f, sim)
-    feet = A(terrain(sim.fig_t), M(DIR, -R * 1.6))
-    ball_c = A(terrain(sim.ball_t), M(NRM, R))
+    if sim.meteor:
+        draw_meteor(f, sim.meteor)
+    if sim.companion:
+        draw_companion(f, sim.companion, sim.clock)
+    feet = A(terrain(sim.fig_t), M(DIR, -R * (0.6 + sim.rock)))
+    ball_c = A(terrain(sim.ball_t), M(NRM, R * sim.rock))
     if sim.prev_feet:
         d = math.hypot(feet[0] - sim.prev_feet[0], feet[1] - sim.prev_feet[1])
-        sim.walk += d / (R * 0.9) * math.pi                     # feet plant when still
+        sim.walk += d / (R * 0.9) * math.pi * (1 + 0.35 * sim.chaos)
     sim.prev_feet = feet
-    draw_boulder(f, sim, ball_c, sim.ball_t * DL / R)
+    draw_boulder(f, sim, ball_c, sim.ball_t * DL / (R * sim.rock))
+    if sim.bird:
+        draw_bird(f, sim)
     draw_figure(f, sim, feet, ball_c)
     if stats and sim.info > 0.02:                               # today's numbers
         txt = f"{stats.keys:,} keys today · boulder displacement: 0 m"
