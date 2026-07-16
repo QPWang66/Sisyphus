@@ -14,8 +14,8 @@ NRM = (DIR[1], -DIR[0])               # off the slope, upward
 # rugged slope: (t along base→summit, offset along NRM in px), piecewise-linear
 BUMPS = ((0.00, 0), (0.08, 3), (0.16, -2.5), (0.26, 4), (0.34, -2), (0.45, 5),
          (0.55, -3), (0.66, 3.5), (0.76, -2), (0.88, 3), (1.00, 0))
-FAR1 = ((W * 0.02, H * 0.52), (W * 0.13, H * 0.42), (W * 0.22, H * 0.47),
-        (W * 0.35, H * 0.35), (W * 0.46, H * 0.43))          # distant ridges
+FAR1 = ((W * 0.02, H * 0.52), (W * 0.11, H * 0.45), (W * 0.22, H * 0.39),  # a clean climb…
+        (W * 0.31, H * 0.44), (W * 0.40, H * 0.36), (W * 0.46, H * 0.42))  # …then it undulates
 FAR2 = ((W * 0.52, H * 0.34), (W * 0.64, H * 0.24), (W * 0.73, H * 0.30),
         (W * 0.86, H * 0.17), (W * 0.99, H * 0.27))
 

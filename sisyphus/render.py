@@ -12,10 +12,20 @@ from .geometry import (A, BASE, BUMPS, DL, DIR, FAR1, FAR2, H, LV, M, NRM, R,
                        SUMMIT, W, catmull, clamp, lerp, terrain)
 
 SS = 2                       # supersample factor
-SEASONS = ((150, 200, 120),  # spring — tender green
-           (224, 170, 100),  # summer — vintage amber
-           (210, 122, 66),   # autumn — rust
-           (172, 196, 212))  # winter — pale ice
+
+
+def _mute(rgb, keep=0.8, dark=0.94):
+    """Pull a color toward its own gray and darken it a touch — muted, grounded
+    tones read more refined than candy-bright ones."""
+    g = 0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]
+    return tuple(int((g + (c - g) * keep) * dark) for c in rgb)
+
+
+SEASONS = tuple(_mute(c) for c in
+                ((150, 200, 120),   # spring — tender green
+                 (224, 170, 100),   # summer — vintage amber
+                 (210, 122, 66),    # autumn — rust
+                 (172, 196, 212)))  # winter — pale ice
 INK = list(SEASONS[1])       # current ink, eased toward the season each frame
 WHITE = (255, 243, 216)      # warm white for stroke cores
 DARKINK = (46, 30, 14)       # deep ink for bright wallpapers
@@ -82,6 +92,18 @@ def brush(f, pts, w, alpha, tip=0.22):
     poly = left + right[::-1]
     f.dg.polygon(poly, fill=_ink(min(1.0, alpha * 0.9)))
     f.dc.polygon(poly, fill=_core(min(1.0, alpha * 1.15)))
+    # flying white (飞白): as the brush lifts, it splits into a couple of dry hairs
+    if n >= 6 and alpha > 0.5:
+        p, q = line_pts[-1], line_pts[-4]
+        dx, dy = p[0] - q[0], p[1] - q[1]
+        dl = math.hypot(dx, dy) or 1
+        dx, dy, nx, ny = dx / dl, dy / dl, -(p[1] - q[1]) / dl, (p[0] - q[0]) / dl
+        for off in (-0.28, 0.28):
+            a0 = (p[0] + nx * off * w - dx * w * 0.5,
+                  p[1] + ny * off * w - dy * w * 0.5)
+            a1 = (a0[0] + dx * w * 1.5, a0[1] + dy * w * 1.5)
+            f.dc.line([(a0[0] * SS, a0[1] * SS), (a1[0] * SS, a1[1] * SS)],
+                      fill=_core(alpha * 0.35), width=max(1, round(SS * 0.55)))
 
 
 def line(f, pts, w, alpha, closed=False, glow=True):
@@ -100,6 +122,22 @@ def dot(f, p, r, alpha):
     rr = r * SS
     f.dg.ellipse((x - rr * 2, y - rr * 2, x + rr * 2, y + rr * 2), fill=_ink(alpha * 0.4))
     f.dc.ellipse((x - rr, y - rr, x + rr, y + rr), fill=_core(alpha))
+
+
+def graded_line(f, pts, w0, w1, a0, a1):
+    """A stroke that fades from heavy and inky (near) to thin and pale (far) —
+    calligraphic pressure and atmospheric depth in one pass."""
+    n = len(pts)
+    for i in range(n - 1):
+        u = i / (n - 1)
+        w, a = lerp(w0, w1, u), lerp(a0, a1, u)
+        seg = [(pts[i][0] * SS, pts[i][1] * SS),
+               (pts[i + 1][0] * SS, pts[i + 1][1] * SS)]
+        f.dg.line(seg, fill=_ink(a * 0.85), width=int(w * SS * 1.8), joint="curve")
+        f.dc.line(seg, fill=_core(a * 1.15), width=max(1, int(w * SS)), joint="curve")
+        r = max(1, int(w * SS)) / 2                        # round off the joint
+        x, y = pts[i + 1][0] * SS, pts[i + 1][1] * SS
+        f.dc.ellipse((x - r, y - r, x + r, y + r), fill=_core(a * 1.15))
 
 
 _FONT = None
@@ -155,13 +193,14 @@ def draw_season(f, sim):
 
 
 def draw_ground(f, sim):
-    line(f, FAR1, 1.2, 0.10, glow=False)                       # distant, silent
-    line(f, FAR2, 1.2, 0.08, glow=False)
+    for far, a in ((FAR1, 0.34), (FAR2, 0.26)):               # distant ridges, hazed
+        f.dg.line([(p[0] * SS, p[1] * SS) for p in far],       # glow layer only: they
+                  fill=_ink(a), width=int(1.2 * SS * 1.8), joint="curve")  # blur back
     pts = [A(BASE, (-30, 12)), A(BASE, (-14, 5))]
     pts += [terrain(t) for t, _ in BUMPS]
     for d in ((10, 9), (20, 13), (30, 26), (46, 33), (62, 52)):  # jagged far side
         pts.append(A(SUMMIT, d))
-    line(f, pts, 1.6, 0.5)
+    graded_line(f, pts, 2.6, 0.7, 0.62, 0.16)                 # heavy base → pale summit/far
     if sim.windy and sim.state in ("TOP", "ROLL", "WATCH"):    # wind at the crest
         t = sim.clock
         wp = [A(A(SUMMIT, (-30 + i * 9, -16 - i * 1.5)),
@@ -202,9 +241,9 @@ def draw_bird(f, sim):
     dot(f, pos, 1.0, 0.65)
 
 
-# the companion's own climb: strictly ascending — he, too, only goes up
-COMP_PATH = ((W * 0.03, H * 0.54), (W * 0.12, H * 0.485), (W * 0.20, H * 0.44),
-             (W * 0.28, H * 0.39), (W * 0.35, H * 0.355))
+# the companion walks the far ridge itself — its ascending first stretch, never
+# the dips beyond. his feet are literally on FAR1, so he never floats.
+COMP_PATH = FAR1[:3]
 
 
 def draw_companion(f, ev, clock):

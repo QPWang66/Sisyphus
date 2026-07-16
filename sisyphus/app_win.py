@@ -9,6 +9,7 @@ renderer already puts under everything.
 No wallpaper-brightness probe here — BG_LIGHT stays at its dark-mode default.
 """
 import math
+import sys
 import time
 import tkinter as tk
 
@@ -16,7 +17,7 @@ from PIL import Image, ImageTk
 
 from .geometry import A, H, M, NRM, R, W, project, terrain
 from .inputs import Stats, Typing
-from .render import render
+from .render import SS, render
 from .sim import Sim
 
 FPS_MS = 33
@@ -24,8 +25,27 @@ KEY_RGB = (1, 2, 3)          # improbable color, keyed to transparent
 KEY = "#010203"
 
 
+def _dpi_aware():
+    """Opt the process into per-monitor DPI awareness so tk stops letting
+    Windows bitmap-stretch (and blur) the window on HiDPI displays."""
+    if sys.platform != "win32":
+        return
+    import ctypes
+    try:
+        ctypes.windll.shcore.SetProcessDpiAwareness(2)      # per-monitor
+    except (AttributeError, OSError):
+        try:
+            ctypes.windll.user32.SetProcessDPIAware()       # older Windows
+        except (AttributeError, OSError):
+            pass
+
+
 def main():
+    _dpi_aware()
     root = tk.Tk()
+    scale = root.winfo_fpixels("1i") / 96.0     # 1.0 at 100%, 1.5 at 150%, …
+    pw, ph = round(W * scale), round(H * scale)  # window in physical pixels
+    oss = max(SS, math.ceil(scale))              # render supersample, then downscale
     root.overrideredirect(True)                 # frameless
     root.attributes("-topmost", True)
     try:
@@ -33,16 +53,18 @@ def main():
     except tk.TclError:
         pass                                    # e.g. Linux: opaque dark window
     sw, sh = root.winfo_screenwidth(), root.winfo_screenheight()
-    root.geometry(f"{W}x{H}+{sw - W - 24}+{sh - H - 80}")       # bottom-right corner
+    mx, my = round(24 * scale), round(80 * scale)
+    root.geometry(f"{pw}x{ph}+{sw - pw - mx}+{sh - ph - my}")   # bottom-right corner
 
-    c = tk.Canvas(root, width=W, height=H, bg=KEY, highlightthickness=0)
+    c = tk.Canvas(root, width=pw, height=ph, bg=KEY, highlightthickness=0)
     c.pack()
 
     sim, stats = Sim(), Stats()
-    key_bg = Image.new("RGBA", (W, H), KEY_RGB + (255,))
+    key_bg = Image.new("RGBA", (pw, ph), KEY_RGB + (255,))
 
     def flat_frame():
-        return Image.alpha_composite(key_bg, render(sim, stats)).convert("RGB")
+        frame = render(sim, stats, out_scale=oss).resize((pw, ph), Image.LANCZOS)
+        return Image.alpha_composite(key_bg, frame).convert("RGB")
 
     press = {"x": 0, "y": 0, "moved": False, "ball": False}
 
@@ -51,7 +73,8 @@ def main():
         return math.hypot(x - bc[0], y - bc[1]) < R * 1.6
 
     def p_down(e):
-        press.update(x=e.x, y=e.y, moved=False, ball=near_ball(e.x, e.y))
+        press.update(x=e.x, y=e.y, moved=False,
+                     ball=near_ball(e.x / scale, e.y / scale))
         if press["ball"]:
             sim.start_drag()
 
@@ -59,7 +82,7 @@ def main():
         if abs(e.x - press["x"]) + abs(e.y - press["y"]) > 3:
             press["moved"] = True
         if press["ball"]:
-            sim.drag_to(project(e.x, e.y))
+            sim.drag_to(project(e.x / scale, e.y / scale))
         else:
             root.geometry(f"+{root.winfo_x() + e.x - press['x']}"
                           f"+{root.winfo_y() + e.y - press['y']}")
@@ -71,9 +94,10 @@ def main():
             sim.poke()
 
     def hover(e):
-        sim.cursor = (e.x, e.y)                 # he notices where you stand
+        lx, ly = e.x / scale, e.y / scale
+        sim.cursor = (lx, ly)                   # he notices where you stand
         ft = terrain(sim.fig_t)
-        if math.hypot(e.x - ft[0], e.y - ft[1]) < 70:
+        if math.hypot(lx - ft[0], ly - ft[1]) < 70:
             sim.info = min(1.0, sim.info + 0.15)
 
     def quit_(*_):
