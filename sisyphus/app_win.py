@@ -63,7 +63,10 @@ def main():
     key_bg = Image.new("RGBA", (pw, ph), KEY_RGB + (255,))
 
     def flat_frame():
-        frame = render(sim, stats, out_scale=oss).resize((pw, ph), Image.LANCZOS)
+        # no shade, no glow: color-key transparency can't key out the dark
+        # semi-transparent layers — they'd composite into black blobs/halos
+        frame = render(sim, stats, out_scale=oss, shade=False, glow=False).resize(
+            (pw, ph), Image.LANCZOS)
         return Image.alpha_composite(key_bg, frame).convert("RGB")
 
     press = {"x": 0, "y": 0, "moved": False, "ball": False}

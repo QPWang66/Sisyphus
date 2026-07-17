@@ -23,7 +23,8 @@ def check():
     sim.tease = sim.will_slip = False
     seen, turned, s0 = {"ASCEND"}, False, sim.season
     for _ in range(int(60 / dt)):
-        sim.update(dt, 1.0)
+        # ease off the keys at the crest, else typing would pin him there forever
+        sim.update(dt, 0.4 if sim.state == "TOP" else 1.0)
         if sim.state == "ASCEND":
             sim.tease = sim.will_slip = False
         seen.add(sim.state)
@@ -73,20 +74,43 @@ def check():
         if sim.state == "TOP":
             break
     assert sim.state == "TOP" and sim.top_hold > 8, (sim.state, sim.top_hold)
-    for _ in range(int(30 / dt)):               # …and it still must come down
-        sim.update(dt, 1.0)
+    for _ in range(int(30 / dt)):               # hands off — it still must come down
+        sim.update(dt, 0.0)
         if sim.state != "TOP" and sim.ball_t < 0.05:
             break
     else:
         raise AssertionError("even the near-success must roll back")
+    # 5b. typing at the crest pins the boulder there — straining, slipping, never over
+    sim = Sim()
+    sim.tease = sim.will_slip = False
+    for _ in range(int(30 / dt)):
+        sim.update(dt, 1.0)
+        if sim.state == "TOP":
+            break
+    assert sim.state == "TOP", sim.state
+    low, dusty = 1.0, False
+    for _ in range(int(10 / dt)):
+        sim.update(dt, 1.0)
+        low = min(low, sim.ball_t)
+        dusty = dusty or bool(sim.dust)
+    assert sim.state == "TOP", f"typing must hold him at the crest ({sim.state})"
+    assert sim.ball_t <= sim.top_t + 1e-6, "the boulder must never crest"
+    assert sim.strain > 0.9 and sim.effort > 1.3, (sim.strain, sim.effort)
+    assert low < sim.top_t - 0.01 and dusty, "it should slip and kick up dust"
+    _run(sim, dt, 8, 0.0)                       # hands leave the keys → down it goes
+    assert sim.ball_t < 0.05 and sim.state != "TOP", (sim.ball_t, sim.state)
     # 6. events: each preview trigger runs its course and clears itself
     sim = Sim()
     sim.tease = sim.will_slip = False
     for name in ("companion", "meteor", "bird"):
         sim.trigger(name)
     assert sim.companion and sim.meteor and sim.bird
-    _run(sim, dt, 40, 0.0)
-    assert sim.companion is None and sim.meteor is None and sim.bird is None
+    for _ in range(int(40 / dt)):               # all gone by ~23s; a later WATCH may
+        sim.update(dt, 0.0)                     # legitimately invite a fresh bird
+        if sim.companion is None and sim.meteor is None and sim.bird is None:
+            break
+    else:
+        raise AssertionError("a triggered event failed to clear itself")
     sim = Sim()                                 # fresh, boulder at the base:
     sim.tease = sim.will_slip = False
     sim.trigger("sit")                          # he sits, then goes back to it

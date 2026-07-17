@@ -54,17 +54,21 @@ class Frame:
         self.dc = ImageDraw.Draw(self.core)
         self.dg = ImageDraw.Draw(self.glow)
 
-    def out(self, dim=1.0, out_scale=1):
-        img = Image.alpha_composite(
-            self.glow.filter(ImageFilter.GaussianBlur(2.6 * SS)), self.core)
+    def out(self, dim=1.0, out_scale=1, shade=True, glow=True):
+        base = (self.glow.filter(ImageFilter.GaussianBlur(2.6 * SS)) if glow
+                else Image.new("RGBA", self.core.size))   # color-key wants no soft glow
+        img = Image.alpha_composite(base, self.core)
         # a soft dark shade under everything: keeps the glow legible on a
-        # bright wallpaper, nearly invisible on a dark one
-        a = img.getchannel("A").filter(ImageFilter.GaussianBlur(4.0 * SS))
-        under = Image.new("RGBA", img.size, (16, 11, 6, 255))
-        k = lerp(1.2, 0.55, clamp(BG_LIGHT[0], 0, 1))   # bright bg: the ink
-        under.putalpha(a.point(lambda v: min(235, int(v * k))))  # itself carries
-        # contrast, so the shade eases off; dark bg: shade stays subtle too
-        img = Image.alpha_composite(under, img)
+        # bright wallpaper, nearly invisible on a dark one. Skipped under
+        # color-key transparency (Windows), where a dark half-alpha layer can't
+        # be keyed out and turns into an opaque black blob.
+        if shade:
+            a = img.getchannel("A").filter(ImageFilter.GaussianBlur(4.0 * SS))
+            under = Image.new("RGBA", img.size, (16, 11, 6, 255))
+            k = lerp(1.2, 0.55, clamp(BG_LIGHT[0], 0, 1))   # bright bg: the ink
+            under.putalpha(a.point(lambda v: min(235, int(v * k))))  # itself carries
+            # contrast, so the shade eases off; dark bg: shade stays subtle too
+            img = Image.alpha_composite(under, img)
         if out_scale != SS:                     # HiDPI callers take SS-res as-is
             img = img.resize((W * out_scale, H * out_scale), Image.LANCZOS)
         if dim < 1.0:
@@ -374,7 +378,7 @@ def draw_figure(f, sim, feet, ball_c):
     brush(f, sway([chest, elbow, hand], t + 4.1), R * 0.22, 0.80, tip=0.25)
 
 
-def render(sim, stats=None, out_scale=1):
+def render(sim, stats=None, out_scale=1, shade=True, glow=True):
     """One full frame as a PIL RGBA image, W*out_scale × H*out_scale."""
     tgt = SEASONS[sim.season]
     for i in range(3):
@@ -401,4 +405,4 @@ def render(sim, stats=None, out_scale=1):
         txt = f"{stats.keys:,} keys today · boulder displacement: 0 m"
         f.dc.text((int(W * 0.06) * SS, int(H * 0.08) * SS), txt,
                   font=_font(), fill=_core(0.75 * sim.info))
-    return f.out(sim.dim, out_scale)
+    return f.out(sim.dim, out_scale, shade, glow)

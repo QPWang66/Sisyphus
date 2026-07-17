@@ -1,6 +1,8 @@
 """The state machine. Headless — no window needed, fully checkable.
 
 States: ASCEND → TOP → ROLL → WATCH → RETURN → ASCEND, forever.
+While the user keeps typing, TOP holds: he strains, slips, and never crests —
+the fall waits for the hands to leave the keys.
 Extras: SLIP (a rare stumble), DRAG (a hand other than his on the boulder),
 SIT (small hours: he rests by the boulder before starting again).
 Rare passing events: a meteor, a bird, another Sisyphus on a distant ridge.
@@ -15,6 +17,7 @@ from .geometry import A, DIR, M, NRM, clamp, ease, lerp, terrain
 TOP_T = 0.85                                  # the ball never reaches the summit
 DUR = {"TOP": 1.3, "ROLL": 1.5, "WATCH": 1.8, "RETURN": 5.5}
 ASCEND_V0 = 0.135
+PUSH_HOLD = 0.5                               # drive ≥ this pins the boulder at the crest
 R = 17
 
 
@@ -44,6 +47,8 @@ class Sim:
         self.companion = None                  # {"p": 0..1, "paused": bool}
         self.roll_from, self.roll_dur = 0.0, 1.0
         self.ret_from, self.drag_t = 0.0, 0.0
+        self.strain = 0.0                      # crest struggle, 0 → 1 while typing pins him
+        self.slip_off, self._slip_cd = 0.0, 2.0
         self.sit_dur, self._sit_back = 6.0, "ASCEND"
         self.force_sit = False
         self._splashed = True
@@ -126,6 +131,7 @@ class Sim:
         self.state, self.st = s, 0.0
         if s == "TOP":
             self.top_hold = self.dur["TOP"] + (8.0 if self.tease else 0.0)
+            self.strain, self.slip_off, self._slip_cd = 0.0, 0.0, 2.0
         elif s == "RETURN":
             self.ret_from = self.fig_t
         elif s == "WATCH" and self.bird is None and random.random() < self.bird_p:
@@ -239,6 +245,25 @@ class Sim:
                 self.ball_t = self.top_t
                 self._go("TOP")
         elif s == "TOP":                       # a strained hover — sometimes longer
+            if drive >= PUSH_HOLD:             # typing pins him here: the timer waits,
+                self.st = 0.0                  # the strain only climbs
+                self.strain = min(1.0, self.strain + dt / 6.0)
+                self._slip_cd -= dt
+                if self.strain > 0.3 and self._slip_cd <= 0:
+                    # the boulder slips a notch — he catches it, dust flies
+                    self._slip_cd = lerp(2.5, 1.2, self.strain)
+                    self.slip_off = 0.012 + 0.025 * self.strain
+                    bc = A(terrain(self.ball_t), M(NRM, R * self.rock))
+                    self.dust += [((bc[0] + random.uniform(-4, 4),
+                                    bc[1] + random.uniform(0, 4),
+                                    random.uniform(-16, 16),
+                                    random.uniform(-18, -5)), 0.0)
+                                  for _ in range(3)]
+            else:
+                self.strain = max(0.0, self.strain - dt * 0.5)
+            self.slip_off = max(0.0, self.slip_off - dt * 0.06)  # caught, pushed back
+            grind = 0.003 * self.strain * (0.5 + 0.5 * math.sin(self.clock * 9))
+            self.ball_t = self.top_t - self.slip_off - grind
             if self.tease:                     # …it really does tip forward a hair
                 p = self.st / self.top_hold
                 self.ball_t = self.top_t + 0.008 * p * max(0.0, math.sin(self.st * 2.2))
@@ -291,9 +316,10 @@ class Sim:
             lt_, et, pt = 0.40 + 0.28 * drive + self.heavy * 0.3, \
                 0.55 + 0.75 * drive + self.heavy + (self.rock - 1) * 0.9 \
                 + 0.2 * self.chaos, 1.0
-        elif s == "TOP":
+        elif s == "TOP":                       # strain climbs the longer typing pins him
             x = min(1.0, self.st / self.top_hold)
-            lt_, et, pt = 0.62, 1.15 + (0.55 * x if self.tease else 0), 1
+            lt_, et, pt = 0.62 + 0.25 * self.strain, \
+                1.15 + 0.55 * max(self.strain, x if self.tease else 0.0), 1
         elif s == "DRAG":
             lt_, et, pt = 0.60, 1.2, 1
         elif s == "SLIP":
